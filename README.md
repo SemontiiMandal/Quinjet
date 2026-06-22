@@ -19,7 +19,7 @@ A custom mini quadcopter and remote controller. Built entirely from scratch, cov
 <img width="392" height="235" alt="image" src="https://github.com/user-attachments/assets/4bf446c2-cf03-4cfb-8820-360f66ba5855" />
 <img width="392" height="238" alt="image" src="https://github.com/user-attachments/assets/7459c6a0-8f2e-445b-81c9-21f48d0c49fa" />
 
-**Assembly in progress**
+# Assembly in progress
 <img width="1673" height="747" alt="WhatsApp Image 2026-06-20 at 6 49 02 PM" src="https://github.com/user-attachments/assets/09175b22-ffd7-4547-8345-a01407d9d10e" />
 
 # Testing IMU SPI init and value reading (stationary board)
