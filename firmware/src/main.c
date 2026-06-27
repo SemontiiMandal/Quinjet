@@ -1,51 +1,36 @@
 #include <zephyr/kernel.h>
-#include <zephyr/device.h>
-#include <zephyr/drivers/sensor.h>
 #include <zephyr/sys/printk.h>
 
-static void bmi270_trigger_handler(const struct device *dev, struct sensor_trigger *trig){
-    struct sensor_value val;
+// Import our custom radio module
+#include "radio_esb.h"
 
-    if (trig->type == SENSOR_TRIG_DATA_READY){
+// Toggle this between flashes
+#define I_AM_THE_TRANSMITTER true
 
-         printk("BMI270 data arrived, fetching now...\n");
+test_payload_t my_data = { .packet_id = 0, .test_value = 3.14f };
 
-        // Fetch sensor samples 
-        sensor_sample_fetch(bmi270);
+int main(void) {
+    printk("\n--- Starting Modular ESB Test ---\n");
 
-        // Get Accelerometer Data
-        sensor_channel_get(bmi270, SENSOR_CHAN_ACCEL_XYZ, accel);
-        
-        // Get Gyroscope Data
-        sensor_channel_get(bmi270, SENSOR_CHAN_GYRO_XYZ, gyro);
-
-        printk("Accel X: %d.%06d m/s^2\n", accel.val1, accel.val2);
-        printk("Gyro X: %d.%06d rad/s\n", gyro.val1, gyro.val2);
+    // Initialize the radio hardware
+    if (radio_esb_init(I_AM_THE_TRANSMITTER) != 0) {
+        printk("Failed to boot radio module.\n");
+        return -1;
     }
-
-}
-
-static void bmi270_init(){
-    const struct device *const bmi270 = DEVICE_DT_GET(DT_NODELABEL(bmi270));
-     struct sensor_trigger trig;
-
-    if (!device_is_ready(bmi270)) {
-        printk("Device BMI270 is not ready.\n");
-        return 0;
-    }
-
-    if (!bmi270_init_interrupts(bmi270)){
-        printk("Interrupt Trigger Enabled for BMI270. \n")
-    }   
-
-    trig.type = SENSOR_TRIG_DATA_READY;
-    trig.chan = SENSOR_CHAN_ALL;
-
-     if (!bmi270_trigger_set(dev, &trig, bmi270_trigger_handler)){
-         printf("Trigger set successfully!\n");
-     }
 
     while (1) {
-      k_sleep_ms(K_FOREVER);
+        if (I_AM_THE_TRANSMITTER) {
+            my_data.packet_id++;
+            my_data.test_value += 0.1f;
+            
+            // Send data using the clean public API
+            radio_esb_send_packet((uint8_t*)&my_data, sizeof(test_payload_t));
+            
+            k_sleep(K_MSEC(10)); 
+        } else {
+            // Sleep and let the radio interrupt handle the printing
+            k_sleep(K_FOREVER);
+        }
     }
+    return 0;
 }
