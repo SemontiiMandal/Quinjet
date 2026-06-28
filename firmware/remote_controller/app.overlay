@@ -16,7 +16,6 @@
         my_pwm_node: pwm_node_0 {
             /* Wires this virtual LED to the physical hardware &pwm0, channel 0 */
             pwms = <&pwm0 0 PWM_HZ(1000) PWM_POLARITY_NORMAL>;
-            pwm-names = "motor";
         };
     };
 
@@ -96,7 +95,7 @@
         zephyr,resolution = <12>; // ADC resolution is 12 bit
     };
 
-}
+};
 
 /*
 The number after the @ symbol (and inside the reg property) specifies the hardware address of the device on that specific bus.
@@ -106,4 +105,5 @@ The number after the @ symbol (and inside the reg property) specifies the hardwa
     status = "okay";
     pinctrl-0 = <&pwm0_default>;
     pinctrl-names = "default";
+    /delete-property/ pinctrl-1;
 };

@@ -4,10 +4,8 @@
 #include <string.h>
 
 #include "radio_esb.h"
-#include "drivers/analog_joystick.h" // for wake_esb
+#include "drivers/analog_joystick.h"
 
-
-// Private callback function (main.c doesn't need to know this exists)
 static void esb_callback(struct esb_evt const *event) {
     switch (event->evt_id) {
         case ESB_EVENT_TX_SUCCESS:
@@ -20,16 +18,17 @@ static void esb_callback(struct esb_evt const *event) {
             {
                 struct esb_payload rx_payload;
                 if (esb_read_rx_payload(&rx_payload) == 0) {
-                    test_payload_t incoming_data;
-                    memcpy(&incoming_data, rx_payload.data, sizeof(test_payload_t));
+                    data_packet incoming_data; // Updated to use your new shared struct
+                    memcpy(&incoming_data, rx_payload.data, sizeof(data_packet));
                     
-                    printk("RX Success! ID: %d | Value: %f\n", 
-                           incoming_data.packet_id, (double)incoming_data.test_value);
+                    printk("RX Success! ID: %d | Throttle: %f\n", 
+                           incoming_data.packet_id, (double)incoming_data.throttle);
                 }
             }
             break;
     }
 }
+
 
 int radio_esb_init(bool is_transmitter) {
     struct esb_config config = ESB_DEFAULT_CONFIG;

@@ -1,6 +1,8 @@
 #ifndef RC_STATE_H
 #define RC_STATE_H
 
+#include <stdbool.h>
+
 typedef enum{
     RC_STATE_IDLE = 0,
     RC_STATE_ARMED = 1
@@ -8,7 +10,7 @@ typedef enum{
 
 extern rc_states current_rc_state;
 
-void rc_state_init(void);
+int rc_state_init(void); 
 bool rc_check_arm(void);
 
 #endif
