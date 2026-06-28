@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "radio_esb.h"
+#include "drivers/analog_joystick.h" // for wake_esb
 
 
 // Private callback function (main.c doesn't need to know this exists)
@@ -61,50 +62,33 @@ int radio_esb_init(bool is_transmitter) {
 }
 
 void radio_esb_send_packet(uint8_t *data, uint8_t length) {
-
     struct esb_payload tx_payload = {
         .pipe = 0,
         .noack = false,
     };
-    
     memcpy(tx_payload.data, data, length);
     tx_payload.length = length;
-    
     esb_write_payload(&tx_payload);
 }
 
+// The dedicated transmitter thread
 void esb_tx_thread(void *arg1, void *arg2, void *arg3){
+    data_packet local_tx_packet;
+    uint16_t packet_counter = 0;
+
     while(1){
-        k_sem_take(wake_esb, K_FOREVER);
-        printk("ESB thread woke up");
+        // sleep until ADC says data is ready
+        k_sem_take(&wake_esb, K_FOREVER);
+        
+        // lock, copy, unlock
+        k_mutex_lock(&joystick_data, K_FOREVER);
+        memcpy(&local_tx_packet, &latest_joystick_state, sizeof(data_packet));
+        k_mutex_unlock(&joystick_data);
+
+        // tag it and send it
+        local_tx_packet.packet_id = packet_counter++;
+        radio_esb_send_packet((uint8_t*)&local_tx_packet, sizeof(data_packet));
     }
 }
 
-
-test_payload_t my_data = { .packet_id = 0, .test_value = 3.14f };
-
-int main(void) {
-    printk("\n--- Starting Modular ESB Test ---\n");
-
-    // Initialize the radio hardware
-    if (radio_esb_init(I_AM_THE_TRANSMITTER) != 0) {
-        printk("Failed to boot radio module.\n");
-        return -1;
-    }
-
-    while (1) {
-        if (I_AM_THE_TRANSMITTER) {
-            my_data.packet_id++;
-            my_data.test_value += 0.1f;
-            
-            // Send data using the clean public API
-            radio_esb_send_packet((uint8_t*)&my_data, sizeof(test_payload_t));
-            
-            k_sleep(K_MSEC(10)); 
-        } else {
-            // Sleep and let the radio interrupt handle the printing
-            k_sleep(K_FOREVER);
-        }
-    }
-    return 0;
-}
+K_THREAD_DEFINE(esb_thread_id, 2048, esb_tx_thread, NULL, NULL, NULL, 5, 0, 0);

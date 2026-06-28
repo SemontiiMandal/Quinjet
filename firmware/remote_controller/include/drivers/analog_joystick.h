@@ -1,23 +1,17 @@
-# ifndef ANALOG_JOYSTICK_H
-# define ANALOG_JOYSTICK_H
+#ifndef ANALOG_JOYSTICK_H
+#define ANALOG_JOYSTICK_H
 
-// C struct defining measurement parameters for ADC samples
-int16_t sample_buffer;
-
-K_SEM_DEFINE(wake_esb, 0, 1);
-
-struct adc_sequence sequence = {
-    .buffer = &sample_buffer;
-    .buffer_size = sizeof(sample_buffer);
-}
+#include <stdint.h>
 
 typedef struct {
- uint16_t x;
- uint16_t y;
+    uint16_t x;
+    uint16_t y;
 } joystick;
 
-#define RING_BUF_SIZE 128
-uint8_t ring_buffer_mem[RING_BUFF_SIZE];
-struct ring_buf ringbuf;
+// declare semaphore to wake ESB thread
+extern struct k_sem wake_esb;
 
-# endif
+// expose the init function to main
+int joystick_init(void);
+
+#endif

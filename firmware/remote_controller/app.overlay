@@ -5,7 +5,7 @@
     zephyr,user {
 
         /* This creates an array of hardware pointers.
-        &adc: A pointer reference to the actual ADC hardware block on your nRF52 chip.
+        &adc: A pointer reference to the actual ADC hardware block on the nRF52 chip.
         0: The channel index ID (the logical channel number inside that ADC block). */
 
         io-channels = <&adc 1>, <&adc 2>, <&adc 3>, <&adc 4>;
@@ -20,19 +20,26 @@
         };
     };
 
+    buttons{
+        compatible = "gpio-keys";
+
+        sel_1: input_pin_1{
+            gpios = <&gpio1 11 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>;
+            label = "Sel 1 for Joystick 1 (Left)";
+        };
+
+
+        sel_2: input_pin_2{
+            gpios = <&gpio1 12 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>;
+            label = "Sel 2 for Joystick 2 (Right)";
+        };
+    };
+
 };
 
 // Pinctrl states are defined outside the root node, targeting the global pinctrl block
 
 &pinctrl {
-    spi1_default: spi1_default {
-        group1 {
-            psels = <NRF_PSEL(SPIM_SCK, 0, 21)>,
-                    <NRF_PSEL(SPIM_MOSI, 0, 19)>,
-                    <NRF_PSEL(SPIM_MISO, 0, 20)>;
-        };
-    };
-
     pwm0_default: pwm0_default {
         group1 {
             /* Example: Routing PWM channel 0 to Pin P0.13 */
@@ -91,28 +98,9 @@
 
 }
 
-
 /*
 The number after the @ symbol (and inside the reg property) specifies the hardware address of the device on that specific bus.
 */
-
-&spi1 {
-    compatible = "nordic,nrf-spim";
-    status = "okay";
-    pinctrl-0 = <&spi1_default>;
-    pinctrl-names = "default";
-    /delete-property/ pinctrl-1;
-
-    cs-gpios = <&gpio0 22 GPIO_ACTIVE_LOW>;
-
-    bmi270: bmi270@0 {
-        compatible = "bosch,bmi270";
-        reg = <0>;
-        spi-max-frequency = <1000000>;
-        irq-gpios = <&gpio0 17 GPIO_ACTIVE_HIGH>;
-    };
-};
-
 
 &pwm0 {
     status = "okay";
