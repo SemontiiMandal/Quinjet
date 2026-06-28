@@ -1,18 +1,25 @@
+
 # Quinjet
+
 A custom mini quadcopter and remote controller. Built entirely from scratch, covering the PCB layout, Zephyr firmware, and flight hardware.
 
-## Hardware Design & Schematics
-Custome PCB designed in Altium Designer.
+## Hardware Design
 
-### Four Layer Flight Controller Board
+Both the flight controller and remote controller were designed from scratch in Altium Designer. You can find all design files, including schematics and PCB layouts here, [Altium-Design-Files](https://github.com/SemontiiMandal/Quinjet/tree/main/Altium-Design-Files).
+
+### Four-Layer Flight Controller
+
+The Flight Controller (FC) uses a four-layer stack-up to isolate high-speed digital signals from the power lines driving the motors.
+
+* **Power Delivery:** Features a dedicated boost converter to maintain stable voltage for the nRF52840 and BMI270 under the high current draw of the motors.
+* **Battery Monitoring:** The battery voltage is connected to an ADC channel via a voltage divider, allowing the firmware to track real-time power levels.
+* **Motor Control:** Uses low-side MOSFET switching with flyback diodes to protect the MCU from motor voltage spikes.
 
 **Layout and 3D View**
 
 <img width="208" height="320" alt="image" src="https://github.com/user-attachments/assets/233277cd-628c-4c13-bc4a-4fa8b1c2f2c3" />
 <img width="209" height="317" alt="image" src="https://github.com/user-attachments/assets/f9604bc2-ef96-401c-bba7-bffee0c3b0f9" />
-
 <img width="203" height="304" alt="image" src="https://github.com/user-attachments/assets/80425b7c-5c54-4b40-9792-e77d1a1b7b54" />
-
 <img width="220" height="323" alt="image" src="https://github.com/user-attachments/assets/795a7350-67ce-4f17-937b-cf581d9c7a31" />
 
 
@@ -21,7 +28,16 @@ Custome PCB designed in Altium Designer.
 <img width="612" height="399" alt="image" src="https://github.com/user-attachments/assets/60333128-02d6-4497-9b37-2ff077dc3d59" />
 
 
-### Two Layer Remote control Board
+*Download full schematic [here](https://github.com/SemontiiMandal/Quinjet/blob/main/Altium-Design-Files/Mini-Drone/fc_schematic.pdf).*
+
+### Two-Layer Remote Controller
+
+The Remote Controller (RC) is a two-layer board designed for ergonomic input handling.
+
+* **Input Handling:** Interfaces with two dual-axis analog joysticks, sampled directly by the nRF52840’s built-in 12-bit ADC.
+* **Interface:** Includes an I2C-based OLED display for real-time telemetry and a PWM-driven haptic motor for tactile alerts.
+* **Power Management:** Uses a low-dropout regulator (LDO) to provide clean 3.3V power to the MCU and peripherals, ensuring consistent ADC and sensor readings.
+* **Battery Monitoring:** Here too, the battery voltage is connected to an ADC channel via a voltage divider, allowing the firmware to track real-time power levels.
 
 **Layout and 3D View**
 
@@ -33,6 +49,8 @@ Custome PCB designed in Altium Designer.
 **Schematic**
 
 <img width="545" height="358" alt="image" src="https://github.com/user-attachments/assets/c9dc4d27-9403-4da2-b354-0ec91f743330" />
+
+*Download full schematic [here](https://github.com/SemontiiMandal/Quinjet/blob/main/Altium-Design-Files/Mini-Drone-Remote/rc_schematic.pdf).*
 
 ---
 
