@@ -17,10 +17,14 @@ The Flight Controller (FC) uses a four-layer stack-up to isolate high-speed digi
 
 **Layout and 3D View**
 
-<img width="208" height="320" alt="image" src="https://github.com/user-attachments/assets/233277cd-628c-4c13-bc4a-4fa8b1c2f2c3" />
-<img width="209" height="317" alt="image" src="https://github.com/user-attachments/assets/f9604bc2-ef96-401c-bba7-bffee0c3b0f9" />
-<img width="203" height="304" alt="image" src="https://github.com/user-attachments/assets/80425b7c-5c54-4b40-9792-e77d1a1b7b54" />
-<img width="220" height="323" alt="image" src="https://github.com/user-attachments/assets/795a7350-67ce-4f17-937b-cf581d9c7a31" />
+<table>
+  <tr>
+    <td><img width="208" src="https://github.com/user-attachments/assets/233277cd-628c-4c13-bc4a-4fa8b1c2f2c3" /></td>
+    <td><img width="209" src="https://github.com/user-attachments/assets/f9604bc2-ef96-401c-bba7-bffee0c3b0f9" /></td>
+    <td><img width="203" src="https://github.com/user-attachments/assets/80425b7c-5c54-4b40-9792-e77d1a1b7b54" /></td>
+    <td><img width="220" src="https://github.com/user-attachments/assets/795a7350-67ce-4f17-937b-cf581d9c7a31" /></td>
+  </tr>
+</table>
 
 
 **Schematic**
@@ -41,10 +45,16 @@ The Remote Controller (RC) is a two-layer board designed for ergonomic input han
 
 **Layout and 3D View**
 
-<img width="401" height="238" alt="image" src="https://github.com/user-attachments/assets/1a04b550-618b-487b-a58e-6793f5aee49b" />
-<img width="427" height="251" alt="image" src="https://github.com/user-attachments/assets/b67331ba-49f9-4812-a4f9-c8ba9dedc432" />
-<img width="392" height="235" alt="image" src="https://github.com/user-attachments/assets/4bf446c2-cf03-4cfb-8820-360f66ba5855" />
-<img width="392" height="238" alt="image" src="https://github.com/user-attachments/assets/7459c6a0-8f2e-445b-81c9-21f48d0c49fa" />
+<table>
+  <tr>
+    <td><img width="401" src="https://github.com/user-attachments/assets/1a04b550-618b-487b-a58e-6793f5aee49b" /></td>
+    <td><img width="427" src="https://github.com/user-attachments/assets/b67331ba-49f9-4812-a4f9-c8ba9dedc432" /></td>
+  </tr>
+  <tr>
+    <td><img width="392" src="https://github.com/user-attachments/assets/4bf446c2-cf03-4cfb-8820-360f66ba5855" /></td>
+    <td><img width="392" src="https://github.com/user-attachments/assets/7459c6a0-8f2e-445b-81c9-21f48d0c49fa" /></td>
+  </tr>
+</table>
 
 **Schematic**
 
