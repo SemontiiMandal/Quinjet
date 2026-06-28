@@ -2,30 +2,29 @@
 #include <zephyr/sys/printk.h>
 #include <esb.h>
 #include <string.h>
-
 #include "radio_esb.h"
+#include "drone_packet.h"
 
-// Private callback function (main.c doesn't need to know this exists)
+data_packet latest_rc_command;
+struct k_spinlock rc_spinlock;
+
+/*
+Because the esb_callback will run in an ISR context (Interrupt triggered a soon as data packet arrives) we cannot use a k_mutex to protect the shared data. So, we use a spinlock, which disables local interrupts for a very short time (typically fraction of microsecond short) to safely copy the memory between an ISR and a thread!
+*/
+
+// ESB Hardware interrupt Callback
 static void esb_callback(struct esb_evt const *event) {
-    switch (event->evt_id) {
-        case ESB_EVENT_TX_SUCCESS:
-            // Hardware ACK received.
-            break;
-        case ESB_EVENT_TX_FAILED:
-            printk("TX Failed: Packet dropped over the air.\n");
-            break;
-        case ESB_EVENT_RX_RECEIVED:
-            {
-                struct esb_payload rx_payload;
-                if (esb_read_rx_payload(&rx_payload) == 0) {
-                    test_payload_t incoming_data;
-                    memcpy(&incoming_data, rx_payload.data, sizeof(test_payload_t));
-                    
-                    printk("RX Success! ID: %d | Value: %f\n", 
-                           incoming_data.packet_id, (double)incoming_data.test_value);
-                }
-            }
-            break;
+    if (event->evt_id == ESB_EVENT_RX_RECEIVED){ 
+        struct esb_payload rx_payload;
+
+        if(esb_read_rx_payload(&rx_payload) == 0) {
+            k_spinlock_key_t key = k_spin_lock(&rc_spinlock);
+            memcpy(&latest_rc_command, rx_payload.data, sizeof(data_packet));
+            k_spin_unlock(&rc_spinlock, key);
+            
+            // fixed print formatting
+            // printk("RX! ID: %d | Throttle: %f\n", latest_rc_command.packet_id, (double)latest_rc_command.throttle);
+        }
     }
 }
 
@@ -59,6 +58,7 @@ int radio_esb_init(bool is_transmitter) {
     return 0;
 }
 
+/*
 void radio_esb_send_packet(uint8_t *data, uint8_t length) {
     struct esb_payload tx_payload = {
         .pipe = 0,
@@ -70,3 +70,4 @@ void radio_esb_send_packet(uint8_t *data, uint8_t length) {
     
     esb_write_payload(&tx_payload);
 }
+    */

@@ -1,36 +1,29 @@
 #include <zephyr/kernel.h>
 #include <zephyr/sys/printk.h>
 
-// Import our custom radio module
 #include "radio_esb.h"
+#include "drivers/motor_pwm.h"
 
-// Toggle this between flashes
-#define I_AM_THE_TRANSMITTER true
-
-test_payload_t my_data = { .packet_id = 0, .test_value = 3.14f };
+// Expose the BMI init here as it's not a generic device call
+extern int bmi270_init(void);
 
 int main(void) {
-    printk("\n--- Starting Modular ESB Test ---\n");
+    printk("\n--- Booting Quinjet FC ---\n");
 
-    // Initialize the radio hardware
-    if (radio_esb_init(I_AM_THE_TRANSMITTER) != 0) {
-        printk("Failed to boot radio module.\n");
-        return -1;
+    if (app_pwm_init() != 0) {
+        printk("Failed to init PWM.\n");
     }
 
-    while (1) {
-        if (I_AM_THE_TRANSMITTER) {
-            my_data.packet_id++;
-            my_data.test_value += 0.1f;
-            
-            // Send data using the clean public API
-            radio_esb_send_packet((uint8_t*)&my_data, sizeof(test_payload_t));
-            
-            k_sleep(K_MSEC(10)); 
-        } else {
-            // Sleep and let the radio interrupt handle the printing
-            k_sleep(K_FOREVER);
-        }
+    if (bmi270_init() != 0) {
+        printk("Failed to init IMU.\n");
     }
+
+    if (radio_esb_init(false) != 0) { // false = PRX (Receiver)
+        printk("Failed to boot radio.\n");
+    }
+
+    printk("System Ready. Flight Controller locked to IMU interrupts.\n");
+    
+    k_sleep(K_FOREVER);
     return 0;
 }

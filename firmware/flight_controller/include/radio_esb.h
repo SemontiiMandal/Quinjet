@@ -3,15 +3,13 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <zephyr/spinlock.h>
+#include "drone_packet.h" 
 
-// Our mock data structure for the test
-typedef struct {
-    uint32_t packet_id;
-    float test_value;
-} __attribute__((packed)) test_payload_t;
+// Expose the shared memory and the lock to the flight control thread
+extern data_packet latest_rc_command;
+extern struct k_spinlock rc_spinlock;
 
-// Public API Functions
 int radio_esb_init(bool is_transmitter);
-void radio_esb_send_packet(uint8_t *data, uint8_t length);
 
-#endif // RADIO_ESB_H
+#endif

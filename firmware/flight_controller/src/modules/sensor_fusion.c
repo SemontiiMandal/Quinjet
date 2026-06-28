@@ -1,5 +1,6 @@
 #include <stdio.h>
-// Assuming delta_t is fixed (e.g., 0.001 seconds for a 1kHz loop)
+#include <math.h> // Required for atan2f and sqrtf
+#include "modules/sensor_fusion.h"
 #define DELTA_T 0.001f
 #define ALPHA 0.98f
 

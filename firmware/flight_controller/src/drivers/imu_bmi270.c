@@ -5,36 +5,32 @@
 
 K_SEM_DEFINE(imu_data_ready_sem, 0, 1);
 
-static void bmi270_trigger_handler(const struct device *dev, struct sensor_trigger *trig){
-    k_sem_give(&imu_data_ready_sem);
+static void bmi270_trigger_handler(const struct device *dev, const struct sensor_trigger *trig){
+    k_sem_give(&imu_data_ready_sem); // Wakes the flight control thread
 }
 
-static void bmi270_init(){
-    const struct device *const bmi270 = DEVICE_DT_GET(DT_NODELABEL(bmi270));
+int bmi270_init(void){
+    const struct device *bmi270 = DEVICE_DT_GET(DT_NODELABEL(bmi270));
 
-     struct sensor_trigger trig{
-        .type = SENSOR_TRIG_DATA_READY;
-        .chan = SENSOR_CHAN_ALL; 
-     }
+    // Sstruct initialization
+    struct sensor_trigger trig = {
+        .type = SENSOR_TRIG_DATA_READY,
+        .chan = SENSOR_CHAN_ALL 
+    };
 
     if (!device_is_ready(bmi270)) {
         printk("Device BMI270 is not ready.\n");
-        return 0;
+        return -1;
     }
 
-    if (!bmi270_init_interrupts(bmi270)){
-        printk("Interrupt Trigger Enabled for BMI270. \n")
-    }   
-
-     if (!bmi270_trigger_set(dev, &trig, bmi270_trigger_handler)){
-         printf("Trigger set successfully!\n");
-     }
-
-    while (1) {
-      k_sleep_ms(K_FOREVER);
+    if (sensor_trigger_set(bmi270, &trig, bmi270_trigger_handler) < 0){
+        printk("Failed to set trigger!\n");
+        return -1;
     }
+
+    printk("Trigger set successfully!\n");
+    return 0; 
 }
-
 /*
 DO NOT READ INSIDE THE CALLBACK; GIVE SEMAPHORE TO FLIGHT CONTROL THREAD AND EXIT (DONE ABOVE).
 

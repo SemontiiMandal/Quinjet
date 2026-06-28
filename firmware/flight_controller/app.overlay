@@ -1,9 +1,51 @@
+/ {
+    pwm_motor {
+        compatible = "pwm-leds";
+        mot_1: pwm_node_0 {
+            pwms = <&pwm0 0 PWM_HZ(32000) PWM_POLARITY_NORMAL>;
+        };
+        mot_2: pwm_node_1 {
+            pwms = <&pwm1 0 PWM_HZ(32000) PWM_POLARITY_NORMAL>;
+        };
+        mot_3: pwm_node_2 {
+            pwms = <&pwm2 0 PWM_HZ(32000) PWM_POLARITY_NORMAL>;
+        };
+        mot_4: pwm_node_3 {
+            pwms = <&pwm3 0 PWM_HZ(32000) PWM_POLARITY_NORMAL>;
+        };
+    };
+};
+
 &pinctrl {
     spi1_default: spi1_default {
         group1 {
             psels = <NRF_PSEL(SPIM_SCK, 0, 21)>,
                     <NRF_PSEL(SPIM_MOSI, 0, 19)>,
                     <NRF_PSEL(SPIM_MISO, 0, 20)>;
+        };
+    };
+    pwm0_default: pwm0_default {
+        group1 {
+            /* Routing PWM channel 0 to Pin P0.13 */
+            psels = <NRF_PSEL(PWM_OUT0, 0, 13)>;
+        };
+    };
+    pwm1_default: pwm1_default {
+        group1 {
+            /* Routing PWM channel 0 to Pin P0.14 */
+            psels = <NRF_PSEL(PWM_OUT0, 0, 14)>;
+        };
+    };
+    pwm2_default: pwm2_default {
+        group1 {
+            /* Routing PWM channel 0 to Pin P0.15 */
+            psels = <NRF_PSEL(PWM_OUT0, 0, 15)>;
+        };
+    };
+    pwm3_default: pwm3_default {
+        group1 {
+            /* Routing PWM channel 0 to Pin P0.16 */
+            psels = <NRF_PSEL(PWM_OUT0, 0, 16)>;
         };
     };
 };
@@ -19,7 +61,7 @@ The number after the @ symbol (and inside the reg property) specifies the hardwa
     pinctrl-names = "default";
     /delete-property/ pinctrl-1;
 
-    cs-gpios = <&gpio0 22 GPIO_ACTIVE_LOW>; 
+    cs-gpios = <&gpio0 22 GPIO_ACTIVE_LOW>;
 
     bmi270: bmi270@0 {
         compatible = "bosch,bmi270";
@@ -27,4 +69,33 @@ The number after the @ symbol (and inside the reg property) specifies the hardwa
         spi-max-frequency = <1000000>;
         irq-gpios = <&gpio0 17 GPIO_ACTIVE_HIGH>;
     };
+};
+
+
+&pwm0 {
+    status = "okay";
+    pinctrl-0 = <&pwm0_default>;
+    pinctrl-names = "default";
+    /delete-property/ pinctrl-1;
+};
+
+&pwm1 {
+    status = "okay";
+    pinctrl-0 = <&pwm1_default>;
+    pinctrl-names = "default";
+    /delete-property/ pinctrl-1;
+};
+
+&pwm2 {
+    status = "okay";
+    pinctrl-0 = <&pwm2_default>;
+    pinctrl-names = "default";
+    /delete-property/ pinctrl-1;
+};
+
+&pwm3 {
+    status = "okay";
+    pinctrl-0 = <&pwm3_default>;
+    pinctrl-names = "default";
+    /delete-property/ pinctrl-1;
 };
