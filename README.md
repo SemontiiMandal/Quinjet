@@ -26,7 +26,18 @@ A custom mini quadcopter and remote controller. Built entirely from scratch, cov
 
 ## Firmware Architecture
 
-## Remote Controller Board
+### Flight Controller Board
+
+The Flight Controller (FC) is a high-performance, real-time system engineered to maintain a strict, 1000Hz control loop, ensuring the drone responds to flight dynamics with millisecond precision.
+
+* **Physics-First Timing:** The firmware is driven by a hardware interrupt from the BMI270 IMU. This ensures the flight loop runs at a deterministic 1000Hz, perfectly synchronized to the physical reality of the drone's orientation.
+* **Lock-Free Concurrency:** The system uses `k_spinlock` for memory protection, allowing the radio radio to asynchronously dump pilot commands into shared memory without ever blocking the critical PID loop or halting the Zephyr scheduler.
+* **Safety & Control:** The system features a custom PID implementation with Anti-Windup logic and a Motor Mixer that acts as a hardware kill-switch, ensuring motors only spin when explicitly armed and commanded.
+
+**For a deep dive into flight dynamics, spinlock logic, and PID tuning, see the [Flight Controller Architecture Documentation](https://github.com/SemontiiMandal/Quinjet/blob/main/firmware/flight_controller/Architecture.md).**
+
+---
+### Remote Controller Board
 
 The Quinjet system utilizes a custom, low-latency firmware stack built on **Zephyr RTOS**. The remote controller and flight controller communicate via a proprietary Enhanced ShockBurst (ESB) radio link, sharing a strictly packed data structure for real-time control input.
 
@@ -43,4 +54,8 @@ The Quinjet system utilizes a custom, low-latency firmware stack built on **Zeph
 
 ## Testing Remote Controller (RC) Transmission (no RX connected yet)
 <img width="374" height="99" alt="image" src="https://github.com/user-attachments/assets/52db7c10-d8ef-413e-8a44-60d6728cf272" />
+
+## Testing Flight Controller
+<img width="417" height="100" alt="image" src="https://github.com/user-attachments/assets/4fb4f298-1acd-43d1-ad62-25b044804eaf" />
+
 
