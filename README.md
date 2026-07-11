@@ -121,6 +121,9 @@ The Quinjet system utilizes a custom, low-latency firmware stack built on **Zeph
 ## Pics of Assembly in progress
 <img width="1673" height="747" alt="WhatsApp Image 2026-06-20 at 6 49 02 PM" src="https://github.com/user-attachments/assets/09175b22-ffd7-4547-8345-a01407d9d10e" />
 
+## Mechanical Structure
+<img width="1076" height="1126" alt="image" src="https://github.com/user-attachments/assets/254b7e6f-140b-492b-aece-ba703a7abb21" />
+
 ## Testing IMU SPI init and value reading (stationary board)
 <img width="491" height="172" alt="image" src="https://github.com/user-attachments/assets/34b10cb0-b8a3-4e95-9363-3732c4dfbc26" />
 
@@ -129,5 +132,7 @@ The Quinjet system utilizes a custom, low-latency firmware stack built on **Zeph
 
 ## Testing Flight Controller
 <img width="417" height="100" alt="image" src="https://github.com/user-attachments/assets/4fb4f298-1acd-43d1-ad62-25b044804eaf" />
+
+
 
 
