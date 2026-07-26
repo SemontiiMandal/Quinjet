@@ -12,6 +12,7 @@ target_sources(app PRIVATE
     src/modules/motor_mixer.c
     src/modules/pid.c
     src/modules/sensor_fusion.c
+    src/modules/dynamic_notch.c
 )
 
 # Added shared include for the data packet
