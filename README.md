@@ -104,6 +104,22 @@ The Flight Controller (FC) is a high-performance, real-time system engineered to
 
 **For a deep dive into flight dynamics, spinlock logic, and PID tuning, see the [Flight Controller Architecture Documentation](https://github.com/SemontiiMandal/Quinjet/blob/main/firmware/flight_controller/Architecture.md).**
 
+### Firmware Updates: CMSIS-DSP Integration
+
+The flight controller firmware was updated to use the ARM CMSIS-DSP library. The original C implementation used standard math libraries and raw finite-difference calculations. Moving to hardware-accelerated digital signal processing solved three specific flight dynamics problems.
+
+#### D-term motor heating
+
+The original PID controller calculated the derivative term using raw finite differences (`(error - previous_error) / dt`). At a 1000Hz loop rate, this amplified high-frequency mechanical vibrations from the coreless motors, causing the MOSFETs and motors to overheat and creating micro-jitters during hover. To fix this, a second-order Butterworth low-pass filter (`arm_biquad_cascade_df2T_f32`) was applied to the D-term. This mathematically strips out frequencies above 30Hz before the correction reaches the motor mixer.
+
+#### Dynamic notch filtering for motor resonance
+
+Motor noise frequencies shift depending on the throttle level. A dynamic notch filter was built to target these shifting bands. The firmware pulls a 64-sample buffer of gyroscope data and runs a real fast Fourier transform (`arm_rfft_fast_f32`) to identify the peak noise frequency between 100Hz and 400Hz. The system then recalculates the coefficients of a biquad notch filter centered on that exact frequency, neutralizing the motor resonance before it enters the PID loop.
+
+#### Gimbal lock and fast math
+
+The initial sensor fusion module calculated Euler angles directly using standard `atan2f` and `sqrtf` functions. This was slow and risked gimbal lock if the drone pitched near 90 degrees. The standard math was replaced with CMSIS fast math (`arm_sqrt_f32`) and quaternion-based rotation matrices. This utilizes the hardware floating-point unit (FPU) on the Cortex-M4F to execute in fewer clock cycles and allows for 360-degree acrobatic tracking without mathematical singularities.
+
 ---
 ### Remote Controller Board
 
