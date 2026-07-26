@@ -1,19 +1,30 @@
+
 # Quinjet
+
 A custom mini quadcopter and remote controller. Built entirely from scratch, covering the PCB layout, Zephyr firmware, and flight hardware.
 
-## Hardware Design & Schematics
-Custome PCB designed in Altium Designer.
+## Hardware Design
 
-### Four Layer Flight Controller Board
+Both the flight controller and remote controller were designed from scratch in Altium Designer. You can find all design files, including schematics and PCB layouts here, [Altium-Design-Files](https://github.com/SemontiiMandal/Quinjet/tree/main/Altium-Design-Files).
+
+### Four-Layer Flight Controller
+
+The Flight Controller (FC) uses a four-layer stack-up to isolate high-speed digital signals from the power lines driving the motors.
+
+* **Power Delivery:** Features a dedicated boost converter to maintain stable voltage for the nRF52840 and BMI270 under the high current draw of the motors.
+* **Battery Monitoring:** The battery voltage is connected to an ADC channel via a voltage divider, allowing the firmware to track real-time power levels.
+* **Motor Control:** Uses low-side MOSFET switching with flyback diodes to protect the MCU from motor voltage spikes.
 
 **Layout and 3D View**
 
-<img width="208" height="320" alt="image" src="https://github.com/user-attachments/assets/233277cd-628c-4c13-bc4a-4fa8b1c2f2c3" />
-<img width="209" height="317" alt="image" src="https://github.com/user-attachments/assets/f9604bc2-ef96-401c-bba7-bffee0c3b0f9" />
-
-<img width="203" height="304" alt="image" src="https://github.com/user-attachments/assets/80425b7c-5c54-4b40-9792-e77d1a1b7b54" />
-
-<img width="220" height="323" alt="image" src="https://github.com/user-attachments/assets/795a7350-67ce-4f17-937b-cf581d9c7a31" />
+<table>
+  <tr>
+    <td><img width="208" src="https://github.com/user-attachments/assets/233277cd-628c-4c13-bc4a-4fa8b1c2f2c3" /></td>
+    <td><img width="209" src="https://github.com/user-attachments/assets/f9604bc2-ef96-401c-bba7-bffee0c3b0f9" /></td>
+    <td><img width="203" src="https://github.com/user-attachments/assets/80425b7c-5c54-4b40-9792-e77d1a1b7b54" /></td>
+    <td><img width="220" src="https://github.com/user-attachments/assets/795a7350-67ce-4f17-937b-cf581d9c7a31" /></td>
+  </tr>
+</table>
 
 
 **Schematic**
@@ -21,18 +32,35 @@ Custome PCB designed in Altium Designer.
 <img width="612" height="399" alt="image" src="https://github.com/user-attachments/assets/60333128-02d6-4497-9b37-2ff077dc3d59" />
 
 
-### Two Layer Remote control Board
+*Download full schematic [here](https://github.com/SemontiiMandal/Quinjet/blob/main/Altium-Design-Files/Mini-Drone/fc_schematic.pdf).*
+
+### Two-Layer Remote Controller
+
+The Remote Controller (RC) is a two-layer board designed for ergonomic input handling.
+
+* **Input Handling:** Interfaces with two dual-axis analog joysticks, sampled directly by the nRF52840’s built-in 12-bit ADC.
+* **Interface:** Includes an I2C-based OLED display for real-time telemetry and a PWM-driven haptic motor for tactile alerts.
+* **Power Management:** Uses a low-dropout regulator (LDO) to provide clean 3.3V power to the MCU and peripherals, ensuring consistent ADC and sensor readings.
+* **Battery Monitoring:** Here too, the battery voltage is connected to an ADC channel via a voltage divider, allowing the firmware to track real-time power levels.
 
 **Layout and 3D View**
 
-<img width="401" height="238" alt="image" src="https://github.com/user-attachments/assets/1a04b550-618b-487b-a58e-6793f5aee49b" />
-<img width="427" height="251" alt="image" src="https://github.com/user-attachments/assets/b67331ba-49f9-4812-a4f9-c8ba9dedc432" />
-<img width="392" height="235" alt="image" src="https://github.com/user-attachments/assets/4bf446c2-cf03-4cfb-8820-360f66ba5855" />
-<img width="392" height="238" alt="image" src="https://github.com/user-attachments/assets/7459c6a0-8f2e-445b-81c9-21f48d0c49fa" />
+<table>
+  <tr>
+    <td><img width="401" src="https://github.com/user-attachments/assets/1a04b550-618b-487b-a58e-6793f5aee49b" /></td>
+    <td><img width="427" src="https://github.com/user-attachments/assets/b67331ba-49f9-4812-a4f9-c8ba9dedc432" /></td>
+  </tr>
+  <tr>
+    <td><img width="392" src="https://github.com/user-attachments/assets/4bf446c2-cf03-4cfb-8820-360f66ba5855" /></td>
+    <td><img width="392" src="https://github.com/user-attachments/assets/7459c6a0-8f2e-445b-81c9-21f48d0c49fa" /></td>
+  </tr>
+</table>
 
 **Schematic**
 
 <img width="545" height="358" alt="image" src="https://github.com/user-attachments/assets/c9dc4d27-9403-4da2-b354-0ec91f743330" />
+
+*Download full schematic [here](https://github.com/SemontiiMandal/Quinjet/blob/main/Altium-Design-Files/Mini-Drone-Remote/rc_schematic.pdf).*
 
 ---
 
@@ -76,6 +104,22 @@ The Flight Controller (FC) is a high-performance, real-time system engineered to
 
 **For a deep dive into flight dynamics, spinlock logic, and PID tuning, see the [Flight Controller Architecture Documentation](https://github.com/SemontiiMandal/Quinjet/blob/main/firmware/flight_controller/Architecture.md).**
 
+### Firmware Updates: CMSIS-DSP Integration
+
+The flight controller firmware was updated to use the ARM CMSIS-DSP library. The original C implementation used standard math libraries and raw finite-difference calculations. Moving to hardware-accelerated digital signal processing solved three specific flight dynamics problems.
+
+#### D-term motor heating
+
+The original PID controller calculated the derivative term using raw finite differences (`(error - previous_error) / dt`). At a 1000Hz loop rate, this amplified high-frequency mechanical vibrations from the coreless motors, causing the MOSFETs and motors to overheat and creating micro-jitters during hover. To fix this, a second-order Butterworth low-pass filter (`arm_biquad_cascade_df2T_f32`) was applied to the D-term. This mathematically strips out frequencies above 30Hz before the correction reaches the motor mixer.
+
+#### Dynamic notch filtering for motor resonance
+
+Motor noise frequencies shift depending on the throttle level. A dynamic notch filter was built to target these shifting bands. The firmware pulls a 64-sample buffer of gyroscope data and runs a real fast Fourier transform (`arm_rfft_fast_f32`) to identify the peak noise frequency between 100Hz and 400Hz. The system then recalculates the coefficients of a biquad notch filter centered on that exact frequency, neutralizing the motor resonance before it enters the PID loop.
+
+#### Gimbal lock and fast math
+
+The initial sensor fusion module calculated Euler angles directly using standard `atan2f` and `sqrtf` functions. This was slow and risked gimbal lock if the drone pitched near 90 degrees. The standard math was replaced with CMSIS fast math (`arm_sqrt_f32`) and quaternion-based rotation matrices. This utilizes the hardware floating-point unit (FPU) on the Cortex-M4F to execute in fewer clock cycles and allows for 360-degree acrobatic tracking without mathematical singularities.
+
 ---
 ### Remote Controller Board
 
@@ -93,6 +137,11 @@ The Quinjet system utilizes a custom, low-latency firmware stack built on **Zeph
 ## Pics of Assembly in progress
 <img width="1673" height="747" alt="WhatsApp Image 2026-06-20 at 6 49 02 PM" src="https://github.com/user-attachments/assets/09175b22-ffd7-4547-8345-a01407d9d10e" />
 
+## Mechanical Structure
+<img width="2000" height="1126" alt="image" src="https://github.com/user-attachments/assets/8860c3f9-e523-4ad9-9145-561c303c28fa" />
+
+<img width="1076" height="1126" alt="image" src="https://github.com/user-attachments/assets/254b7e6f-140b-492b-aece-ba703a7abb21" />
+
 ## Testing IMU SPI init and value reading (stationary board)
 <img width="491" height="172" alt="image" src="https://github.com/user-attachments/assets/34b10cb0-b8a3-4e95-9363-3732c4dfbc26" />
 
@@ -101,5 +150,7 @@ The Quinjet system utilizes a custom, low-latency firmware stack built on **Zeph
 
 ## Testing Flight Controller
 <img width="417" height="100" alt="image" src="https://github.com/user-attachments/assets/4fb4f298-1acd-43d1-ad62-25b044804eaf" />
+
+
 
 
