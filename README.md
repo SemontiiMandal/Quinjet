@@ -3,6 +3,8 @@
 
 A custom mini quadcopter and remote controller. Built entirely from scratch, covering the PCB layout, Zephyr firmware, and flight hardware.
 
+<img width="2000" height="1126" alt="image" src="https://github.com/user-attachments/assets/8860c3f9-e523-4ad9-9145-561c303c28fa" />
+
 ## Hardware Design
 
 Both the flight controller and remote controller were designed from scratch in Altium Designer. You can find all design files, including schematics and PCB layouts here, [Altium-Design-Files](https://github.com/SemontiiMandal/Quinjet/tree/main/Altium-Design-Files).
@@ -136,9 +138,6 @@ The Quinjet system utilizes a custom, low-latency firmware stack built on **Zeph
 
 ## Pics of Assembly in progress
 <img width="1673" height="747" alt="WhatsApp Image 2026-06-20 at 6 49 02 PM" src="https://github.com/user-attachments/assets/09175b22-ffd7-4547-8345-a01407d9d10e" />
-
-## Mechanical Structure
-<img width="2000" height="1126" alt="image" src="https://github.com/user-attachments/assets/8860c3f9-e523-4ad9-9145-561c303c28fa" />
 
 <img width="1076" height="1126" alt="image" src="https://github.com/user-attachments/assets/254b7e6f-140b-492b-aece-ba703a7abb21" />
 
