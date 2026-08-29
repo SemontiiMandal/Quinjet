@@ -13,6 +13,8 @@
 #include "modules/pid.h"
 #include "modules/dynamic_notch.h"
 
+#define RADIO_TIMEOUT_MS 500
+
 // Access the semaphore from the IMU driver
 extern struct k_sem imu_data_ready_sem;
 
@@ -27,7 +29,7 @@ static dynamic_notch_t pitch_notch;
 static dynamic_notch_t roll_notch;
 
 void flight_controller_thread(void* p1, void* p2, void* p3){
-    
+    int64_t local_last_packet_time = 0;
     const struct device *bmi270 = DEVICE_DT_GET(DT_NODELABEL(bmi270));
     struct sensor_value accel[3];
     struct sensor_value gyro[3];
@@ -83,7 +85,18 @@ void flight_controller_thread(void* p1, void* p2, void* p3){
             // Get the latest stick positions from the radio thread
             k_spinlock_key_t key = k_spin_lock(&rc_spinlock);
             memcpy(&local_rc_command, &latest_rc_command, sizeof(data_packet));
+            local_last_packet_time = last_packet_time; // Pull the timestamp
             k_spin_unlock(&rc_spinlock, key);
+
+            // FAILSAFE: Did the transmitter disappear?
+            if ((k_uptime_get() - local_last_packet_time) > RADIO_TIMEOUT_MS) {
+                // Overwrite the mixer output with absolute zero
+                motor_outputs_t kill_output = {0, 0, 0, 0};
+                app_pwm_set(&kill_output);
+                
+                // Skip the PID math entirely and wait for the next loop
+                continue; 
+            }
 
             //  Update PID loops (D-term is automatically LPF-filtered inside pid_update)
             float pitch_correction = pid_update(&pitch_pid, local_rc_command.pitch, current_angle.pitch, 0.001f);

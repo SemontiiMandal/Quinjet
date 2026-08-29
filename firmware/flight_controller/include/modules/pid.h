@@ -12,9 +12,11 @@ typedef struct {
     float Kp;
     float Ki;
     float Kd;
+    float Kb; // Back-calculation tracking gain
 
     // State Memory
-    float previous_error;
+    // float previous_error;
+    float previous_measurement;
     float integral_sum;
 
     // Safety Limits
@@ -28,7 +30,7 @@ typedef struct {
 
 } pid_controller;
 
-void pid_init(pid_controller* pid, float p, float i, float d, float i_limit, float out_limit, float cutoff_hz, float sample_hz);
+void pid_init(pid_controller* pid, float p, float i, float d, float b, float i_limit, float out_limit, float cutoff_hz, float sample_hz);
 float pid_update(pid_controller* pid, float setpoint, float measured, float dt);
 
 #endif

@@ -4,6 +4,7 @@
 #define DELTA_T 0.001f
 #define ALPHA 0.98f
 
+/*
 void sensor_fusion_compute(struct sensor_value *accel, struct sensor_value *gyro, euler_angles_t *angles) {
     
     // Convert Zephyr's fixed-point structs (val1 int and val 2 decimal part but given as int) to standard floats (rad/s and m/s^2)
@@ -27,4 +28,20 @@ void sensor_fusion_compute(struct sensor_value *accel, struct sensor_value *gyro
     
     // Yaw is purely Gyro Integration (No accelerometer reference)
     angles->yaw = angles->yaw + (gz * DELTA_T);
+}
+
+*/
+
+// Change function signature
+void sensor_fusion_compute(float ax, float ay, float az, 
+                           float gx, float gy, float gz, 
+                           euler_angles_t *angles, float dt) {
+    
+    // Now just do the math immediately without sensor_value_to_double
+    float roll_ang  = atan2f(ay, sqrtf(ax * ax + az * az));
+    float pitch_ang = atan2f(-ax, sqrtf(ay * ay + az * az));
+
+    angles->roll  = ALPHA * (angles->roll + (gx * dt)) + ((1.0f - ALPHA) * roll_ang);
+    angles->pitch = ALPHA * (angles->pitch + (gy * dt)) + ((1.0f - ALPHA) * pitch_ang);
+    angles->yaw   = angles->yaw + (gz * dt);
 }

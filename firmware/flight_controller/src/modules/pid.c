@@ -28,11 +28,12 @@ static void init_biquad_lpf_coeffs(pid_controller* pid, float cutoff_hz, float s
     arm_biquad_cascade_df2T_init_f32(&pid->dterm_lpf, 1, pid->lpf_coeffs, pid->lpf_state);
 }
 
-void pid_init(pid_controller* pid, float p, float i, float d, float i_limit, float out_limit, float cutoff_hz, float sample_hz) {
+void pid_init(pid_controller* pid, float p, float i, float d, float b, float i_limit, float out_limit, float cutoff_hz, float sample_hz) {
     pid->Kp = p;
     pid->Ki = i;
     pid->Kd = d;
-    pid->previous_error = 0.0f;
+    pid->Kb = b;
+    pid->previous_measurement = 0.0f;
     pid->integral_sum = 0.0f;
     pid->integral_limit = i_limit;
     pid->output_limit = out_limit;
@@ -44,30 +45,41 @@ void pid_init(pid_controller* pid, float p, float i, float d, float i_limit, flo
 float pid_update(pid_controller* pid, float setpoint, float measured, float dt) {
     float error = setpoint - measured;
 
-    // Proportional Term
+    // 1. Proportional Term
     float P_out = pid->Kp * error;
 
-    // Integral Term (with Anti-Windup)
+    // 2. Integral Term (Standard accumulation)
     pid->integral_sum += (error * dt);
-    if (pid->integral_sum > pid->integral_limit) pid->integral_sum = pid->integral_limit;
-    else if (pid->integral_sum < -pid->integral_limit) pid->integral_sum = -pid->integral_limit;
     float I_out = pid->Ki * pid->integral_sum;
 
-    // Filtered Derivative Term 
-    float raw_derivative = (error - pid->previous_error) / dt;
+    // 3. Filtered Derivative Term (On measurement to prevent kick)
+    float raw_derivative = -(measured - pid->previous_measurement) / dt;
     float filtered_derivative = 0.0f;
-
-    // Pass 1 sample through CMSIS-DSP Biquad LPF
     arm_biquad_cascade_df2T_f32(&pid->dterm_lpf, &raw_derivative, &filtered_derivative, 1);
-
     float D_out = pid->Kd * filtered_derivative;
 
-    pid->previous_error = error;
+    pid->previous_measurement = measured;
 
-    // Output Clamp
+    // 4. Calculate total theoretical output
     float total_output = P_out + I_out + D_out;
-    if (total_output > pid->output_limit) total_output = pid->output_limit;
-    else if (total_output < -pid->output_limit) total_output = -pid->output_limit;
+    float final_output = total_output;
 
-    return total_output;
+    // 5. Back-Calculation Anti-Windup
+    float excess = 0.0f;
+    
+    // If output exceeds physical limits, clamp it and calculate the phantom power
+    if (total_output > pid->output_limit) {
+        final_output = pid->output_limit; 
+        excess = total_output - pid->output_limit; 
+    } else if (total_output < -pid->output_limit) {
+        final_output = -pid->output_limit;
+        excess = total_output - (-pid->output_limit);
+    }
+
+    // Mathematically drain the phantom power from the integral memory
+    if (excess != 0.0f) {
+        pid->integral_sum -= (excess * pid->Kb * dt);
+    }
+
+    return final_output;
 }

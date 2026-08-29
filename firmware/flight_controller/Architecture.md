@@ -19,7 +19,34 @@ Controlling physical hardware requires built-in safety limits.
 * **Software Kill-Switch:** The `mix_motors` function serves as the primary safety gate. If the pilot disarms the drone or drops the throttle to zero, the mixer ignores the PID outputs and forces a 0% duty cycle. This prevents sensor noise from spinning the props while on the ground.
 * **Sensor Fusion:** A Complementary Filter merges the raw BMI270 data. It relies on the gyroscope for short-term rotation tracking and uses the accelerometer as a long-term reference to correct for gyro drift.
 
-## 3. Architectural Design Concepts
+## 3. Digital Signal Processing (DSP) Pipeline
+
+Quadcopter environments are incredibly noisy. The 1000Hz flight loop relies on a cascading DSP pipeline to extract true physical motion from severe motor vibrations before feeding data into the PID controller.
+
+**1. Data Ingestion (1000Hz)**
+*   The BMI270 IMU triggers a hardware interrupt.
+*   Raw Accelerometer and Gyroscope data is fetched over SPI.
+
+**2. Resonance Detection (Block-based FFT)**
+*   **Windowing:** A 64-sample Hann window is applied to the raw gyro data to prevent spectral leakage.
+*   **FFT:** CMSIS-DSP `arm_rfft_fast_f32` computes the frequency spectrum.
+*   **Peak Hunting:** The algorithm searches the 100Hz–400Hz band to identify the dominant motor resonance frequency.
+
+**3. Dynamic Notch Filtering**
+*   A Biquad Notch Filter dynamically updates its center frequency based on the FFT output.
+*   This acts as a "sniper," mathematically removing the loudest motor vibration peak while preserving latency-critical actual drone rotations.
+
+**4. Sensor Fusion (Complementary Filter)**
+*   **Gyroscope:** Provides fast, precise rotational changes but drifts over time.
+*   **Accelerometer:** Provides an absolute gravity reference but is highly susceptible to frame bumps.
+*   A Complementary Filter fuses both: `Angle = 0.98 * (Angle + Gyro * dt) + 0.02 * (Accel_Angle)`, correcting long-term gyro drift on the Pitch and Roll axes.
+
+**5. PID Control & D-Term Smoothing**
+*   The system uses an Euler Angle PID controller.
+*   **D-Term LPF:** Because derivatives amplify high-frequency noise, the D-term calculation is routed through an independent 30Hz Biquad Low-Pass Filter to prevent "derivative kick" from twitching the motors.
+*   **Anti-Windup:** The Integrator is clamped to prevent massive spool-ups if the frame is physically blocked.
+
+## 4. Architectural Design Concepts
 
 | Concept | Implementation Strategy |
 | --- | --- |
@@ -28,7 +55,7 @@ Controlling physical hardware requires built-in safety limits.
 | **High-Frequency PWM** | The DeviceTree overrides standard PWM defaults to drive the coreless motors at **32 kHz**. This is above human hearing, which stops the motors from screeching and prevents electrical switching noise from messing with the IMU. |
 | **Hardware Initialization** | The code enforces a strict boot sequence. This ensures the physical decoupling capacitors have time to stabilize the VDD/VDDIO rails before the SPI driver configures the IMU's interrupt registers, preventing brownouts. |
 
-## 4. Logical Flow Summary
+## 5. Logical Flow Summary
 
 The system runs as a continuous, low-latency loop:
 
@@ -37,3 +64,4 @@ The system runs as a continuous, low-latency loop:
 3. **Processing:** The thread fetches the IMU data, runs Sensor Fusion, and calculates the Pitch, Roll, and Yaw PID corrections.
 4. **Mixing:** The PID outputs are mapped to the physical Quad X motor layout.
 5. **Output:** The final duty cycles (0–10000) are sent to the hardware PWM registers to update the motor speeds.
+
