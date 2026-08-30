@@ -106,21 +106,19 @@ The Flight Controller (FC) is a high-performance, real-time system engineered to
 
 **For a deep dive into flight dynamics, spinlock logic, and PID tuning, see the [Flight Controller Architecture Documentation](https://github.com/SemontiiMandal/Quinjet/blob/main/firmware/flight_controller/Architecture.md).**
 
-### Firmware Updates: CMSIS-DSP Integration
+### CMSIS-DSP Library & Filters to Optimize Flight Dynamics
 
-The flight controller firmware was updated to use the ARM CMSIS-DSP library. The original C implementation used standard math libraries and raw finite-difference calculations. Moving to hardware-accelerated digital signal processing solved three specific flight dynamics problems.
+#### Dynamic Notch Filtering & Sliding Window FFT
+Motor noise frequencies shift based on throttle. The firmware uses a sliding-window FFT to track this. It maintains an overlapping 64-sample buffer with a hop size of 8. A Hann window is applied, and a fast Fourier transform (`arm_rfft_fast_f32`) executes every 8ms to find the peak noise frequency. A biquad notch filter then removes this frequency before the data reaches the PID controller.
 
-#### D-term motor heating
+#### Derivative Kick & Anti-Windup
+The PID calculates the derivative on the physical measurement instead of the error to prevent derivative kick. It also uses back-calculation anti-windup: if commanded motor output exceeds 100%, the excess power is calculated and drained from the integral term.
 
-The original PID controller calculated the derivative term using raw finite differences (`(error - previous_error) / dt`). At a 1000Hz loop rate, this amplified high-frequency mechanical vibrations from the coreless motors, causing the MOSFETs and motors to overheat and creating micro-jitters during hover. To fix this, a second-order Butterworth low-pass filter (`arm_biquad_cascade_df2T_f32`) was applied to the D-term. This mathematically strips out frequencies above 30Hz before the correction reaches the motor mixer.
+#### Dynamic Mixer Scaling & Radio Failsafe
+The mixer allows 100% throttle inputs. If a motor exceeds 100% duty cycle, all motors are scaled down equally to preserve differential thrust for stabilization. A radio failsafe checks `k_uptime_get()` and sets PWM to 0 if the RC signal is lost for 500ms.
 
-#### Dynamic notch filtering for motor resonance
-
-Motor noise frequencies shift depending on the throttle level. A dynamic notch filter was built to target these shifting bands. The firmware pulls a 64-sample buffer of gyroscope data and runs a real fast Fourier transform (`arm_rfft_fast_f32`) to identify the peak noise frequency between 100Hz and 400Hz. The system then recalculates the coefficients of a biquad notch filter centered on that exact frequency, neutralizing the motor resonance before it enters the PID loop.
-
-#### Gimbal lock and fast math
-
-The initial sensor fusion module calculated Euler angles directly using standard `atan2f` and `sqrtf` functions. This was slow and risked gimbal lock if the drone pitched near 90 degrees. The standard math was replaced with CMSIS fast math (`arm_sqrt_f32`) and quaternion-based rotation matrices. This utilizes the hardware floating-point unit (FPU) on the Cortex-M4F to execute in fewer clock cycles and allows for 360-degree acrobatic tracking without mathematical singularities.
+#### Hardware FPU Optimization
+The DSP data path uses 32-bit `float` types exclusively. This ensures sensor fusion and biquad filters execute on the nRF52840's hardware Floating-Point Unit (FPU) instead of using software emulation.
 
 ---
 ### Remote Controller Board

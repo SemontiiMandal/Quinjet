@@ -28,11 +28,12 @@ static void init_biquad_lpf_coeffs(pid_controller* pid, float cutoff_hz, float s
     arm_biquad_cascade_df2T_init_f32(&pid->dterm_lpf, 1, pid->lpf_coeffs, pid->lpf_state);
 }
 
-void pid_init(pid_controller* pid, float p, float i, float d, float i_limit, float out_limit, float cutoff_hz, float sample_hz) {
+void pid_init(pid_controller* pid, float p, float i, float d, float b, float i_limit, float out_limit, float cutoff_hz, float sample_hz) {
     pid->Kp = p;
     pid->Ki = i;
     pid->Kd = d;
-    pid->previous_error = 0.0f;
+    pid->Kb = b;
+    pid->previous_measurement = 0.0f;
     pid->integral_sum = 0.0f;
     pid->integral_limit = i_limit;
     pid->output_limit = out_limit;
@@ -47,27 +48,45 @@ float pid_update(pid_controller* pid, float setpoint, float measured, float dt) 
     // Proportional Term
     float P_out = pid->Kp * error;
 
-    // Integral Term (with Anti-Windup)
+    // Integral Term (Memory)
     pid->integral_sum += (error * dt);
-    if (pid->integral_sum > pid->integral_limit) pid->integral_sum = pid->integral_limit;
-    else if (pid->integral_sum < -pid->integral_limit) pid->integral_sum = -pid->integral_limit;
     float I_out = pid->Ki * pid->integral_sum;
 
-    // Filtered Derivative Term 
-    float raw_derivative = (error - pid->previous_error) / dt;
+    // Filtered Derivative Term (On previous measurement term to prevent derivative kick)
+    // Derivative Kick is a massive spike in the control output of a PID controller caused by an abrupt change in the setpoint
+    float raw_derivative = -(measured - pid->previous_measurement) / dt;
     float filtered_derivative = 0.0f;
-
-    // Pass 1 sample through CMSIS-DSP Biquad LPF
     arm_biquad_cascade_df2T_f32(&pid->dterm_lpf, &raw_derivative, &filtered_derivative, 1);
-
     float D_out = pid->Kd * filtered_derivative;
 
-    pid->previous_error = error;
+    pid->previous_measurement = measured;
 
-    // Output Clamp
+    // Calculate total theoretical output
     float total_output = P_out + I_out + D_out;
-    if (total_output > pid->output_limit) total_output = pid->output_limit;
-    else if (total_output < -pid->output_limit) total_output = -pid->output_limit;
+    float final_output = total_output;
 
-    return total_output;
+    // Back-Calculation Anti-Windup
+    float excess = 0.0f;
+    
+    // If output exceeds physical limits, clamp it and calculate the phantom power
+    if (total_output > pid->output_limit) {
+        final_output = pid->output_limit; 
+        excess = total_output - pid->output_limit; 
+    } else if (total_output < -pid->output_limit) {
+        final_output = -pid->output_limit;
+        excess = total_output - (-pid->output_limit);
+    }
+
+    // Eliminate Overshoot, remove this from I-term
+    if (excess != 0.0f) {
+        pid->integral_sum -= (excess * pid->Kb * dt);
+    }
+
+    return final_output;
 }
+
+/*
+If drone is blown off course by a gust of wind, the PID math might calculate that it needs 130% motor power to instantly snap back to level. However, a physical motor maxes out at 100%. That extra 30% is controller saturation overflow and causes integral windups if not handled (i.e. I-term keeps rapidly accumulating more and more error)!!
+
+By the time the drone finally reaches a level hover, the I-term has built up a massive, unnecessary memory. That bloated memory will immediately force the drone to violently over-correct in the opposite direction before the integral math has time to drain back to zero. So here we check if the math exceeds reality, calculating the exact amount of overshoot, and eliminating it. 
+*/

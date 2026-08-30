@@ -12,6 +12,7 @@ typedef struct {
     float sample_buffer[FFT_SIZE];
     float fft_output[FFT_SIZE];
     float fft_mag[FFT_SIZE / 2];
+    float window[FFT_SIZE];
     uint16_t buffer_index;
 
     // Notch Filter State
