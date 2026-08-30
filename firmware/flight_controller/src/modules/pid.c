@@ -45,14 +45,15 @@ void pid_init(pid_controller* pid, float p, float i, float d, float b, float i_l
 float pid_update(pid_controller* pid, float setpoint, float measured, float dt) {
     float error = setpoint - measured;
 
-    // 1. Proportional Term
+    // Proportional Term
     float P_out = pid->Kp * error;
 
-    // 2. Integral Term (Standard accumulation)
+    // Integral Term (Memory)
     pid->integral_sum += (error * dt);
     float I_out = pid->Ki * pid->integral_sum;
 
-    // 3. Filtered Derivative Term (On measurement to prevent kick)
+    // Filtered Derivative Term (On previous measurement term to prevent derivative kick)
+    // Derivative Kick is a massive spike in the control output of a PID controller caused by an abrupt change in the setpoint
     float raw_derivative = -(measured - pid->previous_measurement) / dt;
     float filtered_derivative = 0.0f;
     arm_biquad_cascade_df2T_f32(&pid->dterm_lpf, &raw_derivative, &filtered_derivative, 1);
@@ -60,11 +61,11 @@ float pid_update(pid_controller* pid, float setpoint, float measured, float dt) 
 
     pid->previous_measurement = measured;
 
-    // 4. Calculate total theoretical output
+    // Calculate total theoretical output
     float total_output = P_out + I_out + D_out;
     float final_output = total_output;
 
-    // 5. Back-Calculation Anti-Windup
+    // Back-Calculation Anti-Windup
     float excess = 0.0f;
     
     // If output exceeds physical limits, clamp it and calculate the phantom power
@@ -76,10 +77,16 @@ float pid_update(pid_controller* pid, float setpoint, float measured, float dt) 
         excess = total_output - (-pid->output_limit);
     }
 
-    // Mathematically drain the phantom power from the integral memory
+    // Eliminate Overshoot, remove this from I-term
     if (excess != 0.0f) {
         pid->integral_sum -= (excess * pid->Kb * dt);
     }
 
     return final_output;
 }
+
+/*
+If drone is blown off course by a gust of wind, the PID math might calculate that it needs 130% motor power to instantly snap back to level. However, a physical motor maxes out at 100%. That extra 30% is controller saturation overflow and causes integral windups if not handled (i.e. I-term keeps rapidly accumulating more and more error)!!
+
+By the time the drone finally reaches a level hover, the I-term has built up a massive, unnecessary memory. That bloated memory will immediately force the drone to violently over-correct in the opposite direction before the integral math has time to drain back to zero. So here we check if the math exceeds reality, calculating the exact amount of overshoot, and eliminating it. 
+*/

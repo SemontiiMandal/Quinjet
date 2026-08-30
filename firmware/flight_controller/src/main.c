@@ -4,11 +4,11 @@
 #include "radio_esb.h"
 #include "drivers/motor_pwm.h"
 
-// Expose the BMI init here as it's not a generic device call
+// Expose the BMI init here
 extern int bmi270_init(void);
 
 int main(void) {
-    printk("\n--- Booting Quinjet FC ---\n");
+    printk("\n Booting Quinjet FC \n");
 
     if (app_pwm_init() != 0) {
         printk("Failed to init PWM.\n");

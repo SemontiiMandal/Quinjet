@@ -37,54 +37,29 @@ void dynamic_notch_init(dynamic_notch_t *dn) {
     memset(dn->sample_buffer, 0, sizeof(dn->sample_buffer));
     memset(dn->notch_state, 0, sizeof(dn->notch_state));
 
+    // Pre-calculate the Hann Window shape once on boot
+    for(int i = 0; i < FFT_SIZE; i++) {
+        dn->window[i] = 0.5f * (1.0f - cosf(2.0f * M_PI * i / (FFT_SIZE - 1)));
+    }
+
+    // Initialize CMSIS DSP library for FFT
     arm_rfft_fast_init_f32(&dn->fft_instance, FFT_SIZE);
-    update_notch_coeffs(dn, 200.0f); // Default initial notch at 200Hz
+    
+    // Set a default safe notch at 200Hz until the first FFT runs
+    update_notch_coeffs(dn, 200.0f); 
 }
-/*
-static void update_fft_and_recalculate_notch(dynamic_notch_t *dn) {
-    // Run FFT using CMSIS-DSP
-    arm_rfft_fast_f32(&dn->fft_instance, dn->sample_buffer, dn->fft_output, 0);
-
-    // Compute magnitudes of complex bins
-    arm_cmplx_mag_f32(dn->fft_output, dn->fft_mag, FFT_SIZE / 2);
-
-    // Search for peak frequency in motor noise band (100Hz - 400Hz)
-    uint32_t min_bin = (uint32_t)(MIN_SEARCH_HZ / (SAMPLE_RATE / FFT_SIZE));
-    uint32_t max_bin = (uint32_t)(MAX_SEARCH_HZ / (SAMPLE_RATE / FFT_SIZE));
-
-    float max_val = 0.0f;
-    uint32_t max_index = min_bin;
-
-    for (uint32_t i = min_bin; i <= max_bin; i++) {
-        if (dn->fft_mag[i] > max_val) {
-            max_val = dn->fft_mag[i];
-            max_index = i;
-        }
-    }
-
-    float detected_peak_hz = (float)max_index * (SAMPLE_RATE / (float)FFT_SIZE);
-
-    // Update Notch Filter Coefficients if peak shifted significantly (> 10Hz)
-    if (fabsf(detected_peak_hz - dn->current_notch_freq) > 10.0f) {
-        update_notch_coeffs(dn, detected_peak_hz);
-    }
-}
-*/
-
-// Add this to dynamic_notch_t struct: float window[FFT_SIZE];
-// Initialize it in dynamic_notch_init() using:
-// for(int i=0; i<FFT_SIZE; i++) dn->window[i] = 0.5f * (1.0f - cosf(2.0f * M_PI * i / (FFT_SIZE - 1)));
 
 static void update_fft_and_recalculate_notch(dynamic_notch_t *dn) {
     float windowed_buffer[FFT_SIZE];
     
-    // 1. Apply Hann Window
+    // Apply Hann Window to smoothen peaks at edges
     arm_mult_f32(dn->sample_buffer, dn->window, windowed_buffer, FFT_SIZE);
 
-    // 2. Run FFT
+    // Run FFT 
     arm_rfft_fast_f32(&dn->fft_instance, windowed_buffer, dn->fft_output, 0);
 
-    // 3. Handle CMSIS-DSP Packed Output (Fixing the bug)
+    // Handle CMSIS-DSP Packed Output (
+    // Bug fix
     // dn->fft_output[0] is DC, dn->fft_output[1] is Nyquist
     dn->fft_mag[0] = fabsf(dn->fft_output[0]); // DC
 
@@ -94,7 +69,7 @@ static void update_fft_and_recalculate_notch(dynamic_notch_t *dn) {
         dn->fft_mag[k] = sqrtf(real * real + imag * imag);
     }
 
-    // 4. Search for peak in motor noise band (100Hz - 400Hz)
+    // Search for peak in motor noise band (100Hz - 400Hz)
     uint32_t min_bin = (uint32_t)(MIN_SEARCH_HZ / (SAMPLE_RATE / FFT_SIZE));
     uint32_t max_bin = (uint32_t)(MAX_SEARCH_HZ / (SAMPLE_RATE / FFT_SIZE));
 
@@ -116,11 +91,19 @@ static void update_fft_and_recalculate_notch(dynamic_notch_t *dn) {
 }
 
 float dynamic_notch_process(dynamic_notch_t *dn, float in_sample) {
-    // Store sample in circular FFT buffer
-    dn->sample_buffer[dn->buffer_index++] = in_sample;
+    // Shift entire buffer left by 1 (drops the oldest sample at index 0)
+    // Today I learned that memmove is safe for overlapping memory regions, memcpy is NOT.
+    memmove(&dn->sample_buffer[0], &dn->sample_buffer[1], (FFT_SIZE - 1) * sizeof(float));
 
-    // When buffer fills (every 64ms at 1000Hz), run FFT update
-    if (dn->buffer_index >= FFT_SIZE) {
+    // Insert newest sample at the end of the array
+    dn->sample_buffer[FFT_SIZE - 1] = in_sample;
+
+    dn->buffer_index++;
+
+    // This is basically a sliding window FFT implementation
+
+    // Run the FFT every 8 milliseconds (Hop Size = 8)
+    if (dn->buffer_index >= 8) {
         dn->buffer_index = 0;
         update_fft_and_recalculate_notch(dn);
     }
@@ -131,3 +114,8 @@ float dynamic_notch_process(dynamic_notch_t *dn, float in_sample) {
 
     return out_sample;
 }
+
+
+/*
+We could technically change that 8 ms to a 1 and run the entire CMSIS-DSP FFT every millisecond. Moving 63 floats via memmove takes negligible time. However, running a 64-point FFT consumes roughly 4,000 clock cycles. On a 64MHz nRF52840, running it constantly leaves fewer cycles for radio interrupts and PID math. So, using 8 (or even 16) ms update intervals provides near real-time tracking while keeping the CPU load lightweight :)
+*/

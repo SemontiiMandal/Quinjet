@@ -8,7 +8,7 @@
 data_packet latest_rc_command;
 struct k_spinlock rc_spinlock;
 
-int64_t last_packet_time = 0; // Add this global
+int64_t last_packet_time = 0; // Adding this global to implement a radio failsafe feature
 
 /*
 Because the esb_callback will run in an ISR context (Interrupt triggered a soon as data packet arrives) we cannot use a k_mutex to protect the shared data. So, we use a spinlock, which disables local interrupts for a very short time (typically fraction of microsecond short) to safely copy the memory between an ISR and a thread!
@@ -38,7 +38,7 @@ int radio_esb_init(bool is_transmitter) {
     struct esb_config config = ESB_DEFAULT_CONFIG;
     
     config.protocol = ESB_PROTOCOL_ESB_DPL;
-    config.retransmit_delay = 600;
+    config.retransmit_delay = 600; // Controls the delay between retransmissions of unacknowledged packets; Nordic ESB API default is 600 µs
     config.bitrate = ESB_BITRATE_2MBPS;
     config.event_handler = esb_callback;
 

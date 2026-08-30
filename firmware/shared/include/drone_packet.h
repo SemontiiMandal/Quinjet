@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-// Using the Mode 2 controller configuration
+// Using the Mode 2 controller configuration for drones
 typedef struct __attribute__((packed)){
     // Send normalized floats (16 bytes total)
     float throttle; // 0.0f to 1.0f (Left Joystick Y)
