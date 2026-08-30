@@ -1,101 +1,147 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider
-from scipy.signal import iirnotch, butter, lfilter, freqz
+from scipy.signal import iirnotch, butter, lfilter, lfilter_zi
 
 fs = 1000.0
-t = np.arange(0, 1.0, 1/fs)
+N = 1000
+t = np.arange(N) / fs
 true_motion = np.sin(2 * np.pi * 2.0 * t) 
-broadband_noise = np.random.normal(0, 0.3, len(t))
+broadband_noise = np.random.normal(0, 0.2, N)
 
-fig_time, axs_time = plt.subplots(4, 1, figsize=(10, 8))
-fig_time.canvas.manager.set_window_title('Time Domain: Signal Processing Pipeline')
-plt.subplots_adjust(hspace=0.6, top=0.9, bottom=0.08)
+# Pre-calculate Hann Window (matches dynamic_notch_init)
+fft_size = 64
+hann_window = 0.5 * (1.0 - np.cos(2.0 * np.pi * np.arange(fft_size) / (fft_size - 1)))
 
-lines = []
+def run_flight_controller_sim(motor_end_hz, lpf_fc, kd):
+    # 1. Simulate a Throttle Punch (Motor frequency sweeps from 150Hz to slider value)
+    f_start = 150.0
+    f_t = np.linspace(f_start, motor_end_hz, N)
+    phase = 2 * np.pi * np.cumsum(f_t) / fs
+    motor_noise = 1.5 * np.sin(phase)
+    raw_gyro = true_motion + motor_noise + broadband_noise
+
+    # Output arrays
+    notched_gyro = np.zeros(N)
+    raw_d_term = np.zeros(N)
+    clean_d_term = np.zeros(N)
+    tracked_freq = np.zeros(N)
+
+    # C-Code State Variables
+    buffer = np.zeros(fft_size)
+    prev_measurement = 0.0
+    current_notch_hz = 150.0
+    
+    # Initialize Biquad States (zi)
+    bn, an = iirnotch(current_notch_hz, 3.0, fs)
+    zi_notch = np.zeros(max(len(bn), len(an)) - 1)
+    
+    bl, al = butter(2, lpf_fc / (fs / 2), btype='low')
+    zi_lpf = np.zeros(max(len(bl), len(al)) - 1)
+
+    # --- THE 1kHz FLIGHT LOOP ---
+    for i in range(N):
+        in_sample = raw_gyro[i]
+
+        # 1. Sliding Buffer (memmove equivalent)
+        buffer[:-1] = buffer[1:]
+        buffer[-1] = in_sample
+
+        # 2. FFT Update (Hop Size = 8)
+        if i >= fft_size and i % 8 == 0:
+            windowed = buffer * hann_window
+            spectrum = np.abs(np.fft.rfft(windowed))
+            freqs = np.fft.rfftfreq(fft_size, 1/fs)
+
+            # Search 100Hz - 400Hz band
+            valid_idx = np.where((freqs >= 100) & (freqs <= 400))[0]
+            if len(valid_idx) > 0:
+                peak_idx = valid_idx[np.argmax(spectrum[valid_idx])]
+                detected_hz = freqs[peak_idx]
+
+                # Update coefficients if frequency shifted significantly
+                if abs(detected_hz - current_notch_hz) > 10.0:
+                    current_notch_hz = detected_hz
+                    bn, an = iirnotch(current_notch_hz, 3.0, fs)
+
+        tracked_freq[i] = current_notch_hz
+
+        # 3. Dynamic Notch Filter (Sample-by-Sample)
+        out_notch, zi_notch = lfilter(bn, an, [in_sample], zi=zi_notch)
+        notched_gyro[i] = out_notch[0]
+
+        # 4. Raw Derivative (Finite Difference)
+        raw_derivative = -(notched_gyro[i] - prev_measurement) * fs
+        prev_measurement = notched_gyro[i]
+        raw_d_term[i] = raw_derivative * kd
+
+        # 5. D-Term LPF (Sample-by-Sample)
+        out_lpf, zi_lpf = lfilter(bl, al, [raw_d_term[i]], zi=zi_lpf)
+        clean_d_term[i] = out_lpf[0]
+
+    return raw_gyro, notched_gyro, raw_d_term, clean_d_term, f_t, tracked_freq
+
+# --- UI and Plotting ---
+fig_time, axs_time = plt.subplots(4, 1, figsize=(10, 9))
+fig_time.canvas.manager.set_window_title('True 1kHz Pipeline Simulator')
+plt.subplots_adjust(hspace=0.6, top=0.92, bottom=0.05)
+
 titles = [
-    '1. Raw Sensor Data (True Motion + Motor Noise + Broadband)', 
-    '2. After Dynamic Notch Filter (Remove Motor Noise)', 
-    '3. After D-Term Biquad LPF (Smoothing Broadband Jitter)', 
-    '4. Final PID D-Term Output (Derivative Braking Force)'
+    '1. Raw Gyro (Simulating Throttle Punch: Sweeping Motor Noise)', 
+    '2. Dynamic Notch Output (Real-Time Suppression)', 
+    '3. Raw D-Term (The Danger of Unfiltered Derivatives)', 
+    '4. Filtered D-Term (Motors are Safe)'
 ]
 colors = ['#d62728', '#ff7f0e', '#1f77b4', '#9467bd']
+lines_time = []
 
 for i in range(4):
     line, = axs_time[i].plot(t, np.zeros_like(t), color=colors[i])
     axs_time[i].set_title(titles[i], fontweight='bold')
-    axs_time[i].set_ylim(-4, 4)
+    axs_time[i].set_ylim(-4, 4) if i < 2 else axs_time[i].set_ylim(-10, 10)
     axs_time[i].grid(True, alpha=0.3)
-    lines.append(line)
+    lines_time.append(line)
 
-# --- Window 2: Live Bode Plot & Interactive Controls ---
-fig_ctrl, (ax_mag, ax_phase) = plt.subplots(2, 1, figsize=(8, 8))
-fig_ctrl.canvas.manager.set_window_title('Frequency Domain: Live Bode Plot & Controls')
-plt.subplots_adjust(bottom=0.4, hspace=0.3, top=0.9)
+# Second Window: FFT Tracker Proof
+fig_track, ax_track = plt.subplots(figsize=(8, 4))
+fig_track.canvas.manager.set_window_title('FFT Tracking Performance')
+plt.subplots_adjust(bottom=0.4, top=0.85)
 
-line_mag, = ax_mag.semilogx([], [], color='black', lw=2)
-ax_mag.set_title('Live Combined Bode Plot (Notch + LPF)', fontweight='bold')
-ax_mag.set_ylabel('Magnitude (dB)')
-ax_mag.set_xlim(10, 500)
-ax_mag.set_ylim(-80, 5)
-ax_mag.grid(True, which='both', alpha=0.4)
+line_actual, = ax_track.plot(t, np.zeros_like(t), label='Actual Motor Hz (Sweeping)', color='gray', linestyle='--')
+line_tracked, = ax_track.plot(t, np.zeros_like(t), label='FFT Tracked Hz (64-Sample Res)', color='green', lw=2)
+ax_track.set_title('Sliding Window FFT Tracking the Motor Noise', fontweight='bold')
+ax_track.set_ylabel('Frequency (Hz)')
+ax_track.set_xlabel('Time (s)')
+ax_track.set_ylim(100, 420)
+ax_track.legend(loc='upper left')
+ax_track.grid(True, alpha=0.3)
 
-line_phase, = ax_phase.semilogx([], [], color='black', lw=2)
-ax_phase.set_ylabel('Phase (degrees)')
-ax_phase.set_xlabel('Frequency (Hz)')
-ax_phase.set_xlim(10, 500)
-ax_phase.set_ylim(-360, 10)
-ax_phase.grid(True, which='both', alpha=0.4)
+# Sliders (Safely spaced to prevent overlap)
+ax_motor = plt.axes([0.15, 0.20, 0.75, 0.04])
+ax_lpf   = plt.axes([0.15, 0.12, 0.75, 0.04])
+ax_kd    = plt.axes([0.15, 0.04, 0.75, 0.04])
 
-# Dedicated Slider Axes
-ax_motor = plt.axes([0.15, 0.25, 0.75, 0.03])
-ax_notch = plt.axes([0.15, 0.19, 0.75, 0.03])
-ax_lpf   = plt.axes([0.15, 0.13, 0.75, 0.03])
-ax_kd    = plt.axes([0.15, 0.07, 0.75, 0.03])
-
-# Interactive Sliders
-s_motor = Slider(ax_motor, 'Actual Motor Hz', 100.0, 400.0, valinit=215.0, color='#d62728')
-s_notch = Slider(ax_notch, 'Notch Target Hz', 100.0, 400.0, valinit=215.0, color='#ff7f0e')
+s_motor = Slider(ax_motor, 'Punch End Hz', 150.0, 400.0, valinit=350.0, color='gray')
 s_lpf   = Slider(ax_lpf, 'LPF Cutoff Hz', 10.0, 100.0, valinit=30.0, color='#1f77b4')
-s_kd    = Slider(ax_kd, 'Kd (D-Gain)', 0.0, 0.1, valinit=0.02, color='#9467bd')
+s_kd    = Slider(ax_kd, 'Kd Gain', 0.0, 0.1, valinit=0.02, color='#9467bd')
 
 def update(val):
-    # 1. Simulate Actual Motor Drift
-    motor_noise = 1.5 * np.sin(2 * np.pi * s_motor.val * t)
-    raw_gyro = true_motion + motor_noise + broadband_noise
-    lines[0].set_ydata(raw_gyro)
+    raw, notched, raw_d, clean_d, f_actual, f_tracked = run_flight_controller_sim(
+        s_motor.val, s_lpf.val, s_kd.val
+    )
     
-    # 2. Notch Filter
-    b_n, a_n = iirnotch(s_notch.val, 3.0, fs)
-    notched = lfilter(b_n, a_n, raw_gyro)
-    lines[1].set_ydata(notched)
+    lines_time[0].set_ydata(raw)
+    lines_time[1].set_ydata(notched)
+    lines_time[2].set_ydata(raw_d)
+    lines_time[3].set_ydata(clean_d)
     
-    # 3. Low Pass Filter (Butterworth Biquad)
-    b_l, a_l = butter(2, s_lpf.val / (fs / 2), btype='low')
-    clean = lfilter(b_l, a_l, notched)
-    lines[2].set_ydata(clean)
-    
-    # 4. Derivative (D-Term)
-    derivative = np.gradient(clean, 1/fs)
-    d_term = -s_kd.val * derivative
-    lines[3].set_ydata(d_term)
-    
-    # 5. Live Combined Bode Plot (Notch Cascade * LPF Cascade)
-    w, h_n = freqz(b_n, a_n, worN=2000, fs=fs)
-    w, h_l = freqz(b_l, a_l, worN=2000, fs=fs)
-    h_total = h_n * h_l
-    
-    mag = 20 * np.log10(np.maximum(np.abs(h_total), 1e-10))
-    phase = np.unwrap(np.angle(h_total)) * 180 / np.pi
-    
-    line_mag.set_data(w, mag)
-    line_phase.set_data(w, phase)
+    line_actual.set_ydata(f_actual)
+    line_tracked.set_ydata(f_tracked)
     
     fig_time.canvas.draw_idle()
-    fig_ctrl.canvas.draw_idle()
+    fig_track.canvas.draw_idle()
 
 s_motor.on_changed(update)
-s_notch.on_changed(update)
 s_lpf.on_changed(update)
 s_kd.on_changed(update)
 
